@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="本地运行的大学英语六级听力训练工具">
+  <meta name="theme-color" content="#14213d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>六级听力训练台</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="quiz.css">
+  <link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">六</div>
+        <div><strong>六级听力训练台</strong><span>2016.12—2025.12</span></div>
+      </div>
+      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索年份，如 2024.06" aria-label="搜索试卷"></label>
+      <div class="sidebar-summary"><span id="progressText">0 / 39 已完成</span><div class="progress-track"><i id="progressBar"></i></div></div>
+      <nav id="paperList" class="paper-list" aria-label="试卷列表"></nav>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button class="icon-button mobile-only" id="menuButton" aria-label="打开试卷列表">☰</button>
+        <div><p class="eyebrow">当前训练</p><h1 id="paperTitle">加载中…</h1></div>
+        <button class="complete-button" id="completeButton"><span class="check">✓</span><span id="completeLabel">标记完成</span></button>
+      </header>
+
+      <section class="player-card">
+        <div class="now-playing"><div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div><span>LISTENING SESSION</span><strong id="audioLabel">六级听力</strong></div></div>
+        <audio id="audio" controls preload="metadata"></audio>
+        <div class="speed-row"><span>播放速度</span><div id="speedControls" role="group" aria-label="播放速度"><button data-speed="0.75">0.75×</button><button data-speed="1" class="active">1×</button><button data-speed="1.25">1.25×</button><button data-speed="1.5">1.5×</button></div></div>
+      </section>
+
+      <section class="study-card">
+        <div class="study-toolbar">
+          <div class="tabs" role="tablist"><button class="active" data-tab="transcript" role="tab">听力原文</button><button data-tab="questions" role="tab">在线答题</button><button data-tab="answers" role="tab">答案</button></div>
+          <label class="focus-toggle"><input type="checkbox" id="focusMode"><span></span>精听遮挡</label>
+        </div>
+        <div class="study-hint" id="studyHint">先听一遍，再打开原文核对。开启“精听遮挡”可减少偷看。</div>
+        <article id="content" class="content transcript-content"></article>
+        <div class="quiz-actions" id="quizActions" hidden><span id="answerCount">已答 0 / 25</span><button id="submitQuiz">提交答卷</button></div>
+      </section>
+    </main>
+  </div>
+  <div class="scrim" id="scrim"></div>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
