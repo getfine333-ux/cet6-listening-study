@@ -9,7 +9,7 @@ $audioTarget = Join-Path $assetRoot 'audio'
 
 New-Item -ItemType Directory -Path $webTarget -Force | Out-Null
 New-Item -ItemType Directory -Path $audioTarget -Force | Out-Null
-'index.html','styles.css','quiz.css','app.js','favicon.svg','data.js' | ForEach-Object {
+'index.html','styles.css','quiz.css','app.js','favicon.svg','icon.png','manifest.webmanifest','data.js' | ForEach-Object {
     Copy-Item -LiteralPath (Join-Path $webSource $_) -Destination $webTarget -Force
 }
 $dataPath = Join-Path $webTarget 'data.js'

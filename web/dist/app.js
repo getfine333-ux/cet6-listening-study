@@ -6,6 +6,7 @@
   const content = $("#content");
   const state = { currentId: localStorage.getItem("cet6-current") || records[0]?.id, tab: "transcript", completed: new Set(JSON.parse(localStorage.getItem("cet6-completed") || "[]")), query: "", submitted: false };
   const escapeHtml = (text = "") => text.replace(/[&<>]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[char]));
+  const escapeAttr = (text = "") => escapeHtml(text).replace(/"/g, "&quot;");
   const renderMarkdown = (text) => escapeHtml(text).split("\n").map((line) => /^#\s+/.test(line) ? `<h2>${line.replace(/^#\s+/, "")}</h2>` : /^##\s+/.test(line) ? `<h3>${line.replace(/^##\s+/, "")}</h3>` : line).join("\n");
   const current = () => records.find((record) => record.id === state.currentId) || records[0];
   const titleOf = (record) => `${record.session.replace(".", " 年 ")} 月 · 第 ${record.set} 套`;
@@ -53,11 +54,144 @@
     content.className = "content answer-content";
     content.innerHTML = `${savedResult ? `<div class="answer-summary">最近成绩：<strong>${savedResult.score} / ${savedResult.total}</strong><span>${savedResult.time}</span></div>` : '<div class="answer-summary">还没有提交答卷，以下为标准答案。</div>'}<div class="answer-grid">${grid}</div>`;
   }
+
+  let practiceState = { showing: new Set(), full: false, clickTimer: null };
+
+  function sentenceList() {
+    return current()?.sentences || [];
+  }
+
+  function renderPractice() {
+    const record = current();
+    const sentences = record.sentences || [];
+    practiceState.showing = new Set();
+    practiceState.full = false;
+    if (!sentences.length) {
+      content.className = "content practice-content";
+      content.innerHTML = '<div class="empty"><strong>本套暂无逐句数据</strong><br>请运行 build-data.mjs 重新构建。</div>';
+      return;
+    }
+    const aligned = sentences.some((s) => s.start != null) && record.timing?.method !== "estimated";
+    let lastSection = "";
+    const rows = sentences.map((s, i) => {
+      const divider = s.section && s.section !== lastSection ? (`<div class="section-divider">${escapeHtml(lastSection = s.section)}</div>`) : "";
+      const speaker = s.speaker === "W" ? "女" : s.speaker === "M" ? "男" : "";
+      return divider + `<div class="practice-sentence" data-index="${i}"><span class="sentence-index">${i + 1}</span><span class="sentence-text" data-index="${i}" data-en="${escapeAttr(s.text)}" data-zh="${escapeAttr(s.zh || "")}"><b class="sentence-speaker" ${speaker ? "" : "hidden"}>${speaker}</b>${escapeHtml(s.text)}</span></div>`;
+    }).join("");
+    content.className = "content practice-content";
+    content.innerHTML = `
+      <div class="practice-header">
+        <h2>${titleOf(record)}</h2>
+        <button id="showFullTranslation">${sentences.some((s) => s.zh) ? "显示全文译文" : "显示全文译文（译文未就绪）"}</button>
+      </div>
+      <div class="practice-sentences">${rows}</div>
+      <div class="practice-hint">${aligned ? "点击句子：从该句开始持续播放，播放位置实时高亮；双击该行：查看/收起译文。" : "⚠ 本套源资料的音频与原文内容不一致（源仓库缺陷），无法自动对齐；播放起点为按比例估算，仅供参考，建议只用原文和译文学习。"}</div>`;
+  }
+
+  function sentenceTextEl(index) {
+    return content.querySelector(`.sentence-text[data-index="${index}"]`);
+  }
+
+  function applyTranslation(index, show) {
+    const el = sentenceTextEl(index);
+    if (!el) return;
+    if (show && !el.dataset.zh) return;
+    const speaker = el.querySelector(".sentence-speaker");
+    el.textContent = "";
+    if (speaker) el.appendChild(speaker);
+    el.append(show ? el.dataset.zh : el.dataset.en);
+    el.classList.toggle("translation", show);
+    show ? practiceState.showing.add(index) : practiceState.showing.delete(index);
+  }
+
+  function toggleTranslation(index) {
+    applyTranslation(index, !practiceState.showing.has(index));
+  }
+
+  function toggleFullTranslation() {
+    const button = $("#showFullTranslation");
+    if (!button) return;
+    practiceState.full = !practiceState.full;
+    sentenceList().forEach((_, i) => applyTranslation(i, practiceState.full));
+    button.textContent = practiceState.full ? "收起全文译文" : "显示全文译文";
+  }
+
+  function fallbackStart(index) {
+    const sentences = sentenceList();
+    const duration = audio.duration || 0;
+    if (!duration) return 0;
+    const weights = sentences.map((s) => Math.max(2, s.text.split(/\s+/).length));
+    const total = weights.reduce((sum, w) => sum + w, 0);
+    let before = 0;
+    for (let k = 0; k < index; k++) before += weights[k];
+    return duration * before / total;
+  }
+
+  function setPlayingRow(index) {
+    content.querySelectorAll(".practice-sentence").forEach((el, i) => {
+      el.classList.toggle("playing", i === index);
+    });
+  }
+
+  function clearPlayingRow() {
+    content.querySelectorAll(".practice-sentence.playing").forEach((el) => el.classList.remove("playing"));
+  }
+
+  function playSentence(index) {
+    const sentence = sentenceList()[index];
+    if (!sentence) return;
+    const start = sentence.start != null ? sentence.start : fallbackStart(index);
+    const seekPlay = () => { audio.currentTime = start; audio.play(); };
+    if (audio.readyState >= 1) seekPlay();
+    else audio.addEventListener("loadedmetadata", seekPlay, { once: true });
+    setPlayingRow(index);
+  }
+
+  audio.addEventListener("timeupdate", () => {
+    if (audio.paused || state.tab !== "practice" || !content.classList.contains("practice-content")) return;
+    const sentences = sentenceList();
+    if (!sentences.some((s) => s.start != null)) return;
+    const now = audio.currentTime + 0.2;
+    let active = -1;
+    for (let i = 0; i < sentences.length; i++) {
+      if (sentences[i].start == null) continue;
+      if (now >= sentences[i].start) active = i;
+      else break;
+    }
+    setPlayingRow(active);
+  });
+  audio.addEventListener("pause", clearPlayingRow);
+
+  content.addEventListener("click", (event) => {
+    if (event.target.closest("#showFullTranslation")) {
+      clearTimeout(practiceState.clickTimer);
+      practiceState.clickTimer = null;
+      toggleFullTranslation();
+      return;
+    }
+    const row = event.target.closest(".practice-sentence");
+    if (!row || !content.classList.contains("practice-content")) return;
+    const index = Number(row.dataset.index);
+    if (event.target.closest(".play-btn")) return; // never reached anymore, but leave as guard
+    clearTimeout(practiceState.clickTimer);
+    practiceState.clickTimer = setTimeout(() => { practiceState.clickTimer = null; playSentence(index); }, 280);
+  });
+  content.addEventListener("dblclick", (event) => {
+    const row = event.target.closest(".practice-sentence");
+    if (!row || !content.classList.contains("practice-content")) return;
+    if (event.target.closest(".play-btn")) return;
+    clearTimeout(practiceState.clickTimer);
+    practiceState.clickTimer = null;
+    toggleTranslation(Number(row.dataset.index));
+  });
+
   function renderContent() {
     const record = current(); $("#quizActions").hidden = true;
+    clearTimeout(practiceState.clickTimer);
     $("#focusMode").closest("label").style.display = state.tab === "transcript" ? "flex" : "none";
     if (state.tab === "questions") { $("#studyHint").textContent = "边听边选择答案，系统会自动保存；提交后立即评分。"; renderQuiz(); return; }
     if (state.tab === "answers") { $("#studyHint").textContent = "绿色为答对，红色为答错；回到原文定位错题对应句。"; renderAnswerSheet(); return; }
+    if (state.tab === "practice") { $("#studyHint").textContent = "精听模式：单击句子从该句起持续播放，正在读的句子会实时高亮；快速双击句子查看该句译文。"; renderPractice(); return; }
     content.className = `content transcript-content${$("#focusMode").checked ? " focused" : ""}`;
     content.innerHTML = renderMarkdown(record?.transcript || "暂无内容。");
     $("#studyHint").textContent = "先听一遍，再打开原文核对。开启“精听遮挡”可减少偷看。";
