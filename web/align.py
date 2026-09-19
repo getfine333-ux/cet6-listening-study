@@ -111,7 +111,7 @@ def proportional_estimates(sentences, duration):
     result = []
     pos = 0.0
     for count in counts:
-        est = duration / total
+        est = duration * count / total
         result.append([round(pos, 2), round(max(pos + est, pos + 0.8), 2)])
         pos += est
     return result
