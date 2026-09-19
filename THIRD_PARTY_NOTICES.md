@@ -22,6 +22,15 @@ The upstream project also credits these collections:
 - <https://github.com/gcs8581662641/CET-4-6-Atomic-Supply>
 - <https://github.com/YinsinSirius/CET6-Resources>
 
+## Derived timing and translation data
+
+Files under `web/data/` and the corresponding generated fields in
+`web/dist/data.js` are derived from the attributed transcripts and audio.
+Sentence timing was produced with `faster-whisper`; Chinese translations were
+machine-generated through LibreTranslate-compatible and Google Translate
+endpoints and may contain errors. They are included only as study aids and do
+not replace the original English transcripts.
+
 ## Rights note
 
 CET-6 examination content may contain material whose underlying rights belong
